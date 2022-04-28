@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"sync"
 	"time"
 )
 
 // 定义一个日志的结构体
 type logger struct {
-	sync.Mutex           // 加锁
 	method      uint8    // 写日志的方法	1,为控制台输出,2为文件输出
 	Level       LogLevel // 日志级别
 	filePath    string   // 日志文件路径
@@ -74,7 +72,8 @@ func (l *logger) initFile() error {
 		fmt.Printf("open log file failed,err :%v\n", err)
 		return err
 	}
-	errFileObj, err := os.OpenFile(fullFileName+".err", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	errFileName := path.Join(l.filePath, l.fileName[:len(l.fileName)-len(path.Ext(l.fileName))]+"_err"+path.Ext(l.fileName))
+	errFileObj, err := os.OpenFile(errFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		fmt.Printf("open err log file failed,err :%v\n", err)
 		return err
@@ -90,17 +89,8 @@ func (l *logger) enable(level LogLevel) bool { // 判断是否开启
 	return level >= l.Level
 }
 
-// 判断文件是否超过最大大小,需要切割
-func (l *logger) needSplit(file *os.File) bool {
-	stat, err := file.Stat() // 获取文件信息
-	if err != nil {
-		fmt.Printf("get file info failed,err:%v\n", err)
-		return false
-	}
-	return stat.Size() >= l.maxFileSize
-}
-
 // 切割日志文件
+// 判断文件是否超过最大大小,需要切割
 func (l *logger) fileSpilt(file *os.File) (*os.File, error) {
 	// 需要切割的文件
 	nowStr := time.Now().Format("20060102150405000")
@@ -108,18 +98,24 @@ func (l *logger) fileSpilt(file *os.File) (*os.File, error) {
 	if err != nil {
 		fmt.Printf("get file info failed,err: %v\n", err)
 	}
-	logName := path.Join(l.filePath, stat.Name())
-	newLogName := fmt.Sprintf("%s.bak%s.log", logName, nowStr)
-	// 1,关闭当前文件
-	file.Close()
-	// 2, 备份当前文件 rename newLogName是老的文件
-	os.Rename(logName, newLogName)
-	// 3,打开一个新的日志文件
-	fileObj, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		fmt.Printf("打开一个新的日志文件错误,err :%v\n", err)
+
+	if stat.Size() >= l.maxFileSize { // 如果文件大于最大大小
+		logName := path.Join(l.filePath, stat.Name())
+		newLogName := fmt.Sprintf("%s.bak%s.log", logName, nowStr)
+		// 1,关闭当前文件
+		file.Close()
+		// 2, 备份当前文件 rename newLogName是老的文件
+		os.Rename(logName, newLogName)
+		// 3,打开一个新的日志文件
+		fileObj, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			fmt.Printf("打开一个新的日志文件错误,err :%v\n", err)
+		}
+		return fileObj, nil
+	} else {
+		// 如果文件小于最大大小,则不需要切割
+		return file, nil // 返回原来的文件
 	}
-	return fileObj, nil
 }
 
 // 写入日志到文件
@@ -132,20 +128,20 @@ func (l *logger) log(lv LogLevel, format string, a ...interface{}) {
 			fmt.Printf("[%s] [%s] [%v : %v : %v] : %v\n", lv.logString(), now.Format("2006-01-02 15:04:05"), fileName, funcName, line, msg)
 		} else {
 			// 用 Fprintf 写入自定义的日志格式到日志文件
-			l.Lock()
+			fileObj, err := l.fileSpilt(l.fileObj)
+			if err != nil {
+				fmt.Printf("切割文件错误,err:%v\n", err)
+			}
+			l.fileObj = fileObj
 			fmt.Fprintf(l.fileObj, "[%s] [%s] [%v : %v : %v] : %v\n", lv.logString(), now.Format("2006-01-02 15:04:05"), fileName, funcName, line, msg)
-			l.Unlock()
 			if lv >= ERROR { // 如果是错误级别，就再写入一份到错误日志文件
-				if l.needSplit(l.errFileObj) {
-					errFileObj, err := l.fileSpilt(l.errFileObj)
-					if err != nil {
-						fmt.Printf("切割文件错误,err:%v\n", err)
-					}
-					l.errFileObj = errFileObj
+				errFileObj, err := l.fileSpilt(l.errFileObj)
+				if err != nil {
+					fmt.Printf("切割文件错误,err:%v\n", err)
 				}
-				l.Lock()
+				l.errFileObj = errFileObj
+
 				fmt.Fprintf(l.errFileObj, "[%s] [%s] [%v : %v : %v] : %v\n", lv.logString(), now.Format("2006-01-02 15:04:05"), fileName, funcName, line, msg)
-				l.Unlock()
 			}
 		}
 	}
@@ -169,11 +165,13 @@ func (l *logger) Error(format string, a ...interface{}) {
 }
 func (l *logger) Panic(format string, a ...interface{}) {
 	l.log(PANIC, format, a...)
-	panic(fmt.Sprintf(format, a...))
+	// l.Close()
+	// panic(fmt.Sprintf(format, a...))
 }
 func (l *logger) Fatal(format string, a ...interface{}) {
 	l.log(FATAL, format, a...)
-	os.Exit(1)
+	// l.Close()
+	// os.Exit(1)
 }
 
 // 关闭文件
