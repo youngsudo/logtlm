@@ -165,13 +165,13 @@ func (l *logger) Error(format string, a ...interface{}) {
 }
 func (l *logger) Panic(format string, a ...interface{}) {
 	l.log(PANIC, format, a...)
-	// l.Close()
-	// panic(fmt.Sprintf(format, a...))
+	l.Close()
+	panic(fmt.Sprintf(format, a...))
 }
 func (l *logger) Fatal(format string, a ...interface{}) {
 	l.log(FATAL, format, a...)
-	// l.Close()
-	// os.Exit(1)
+	l.Close()
+	os.Exit(1)
 }
 
 // 关闭文件
