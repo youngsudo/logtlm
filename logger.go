@@ -148,11 +148,11 @@ func (l *logger) log(lv LogLevel, format string, a ...interface{}) {
 }
 
 // 直接调用的方法
-func (l *logger) Debug(format string, a ...interface{}) {
-	l.log(DEBUG, format, a...)
-}
 func (l *logger) Trace(format string, a ...interface{}) {
 	l.log(TRACE, format, a...)
+}
+func (l *logger) Debug(format string, a ...interface{}) {
+	l.log(DEBUG, format, a...)
 }
 func (l *logger) Info(format string, a ...interface{}) {
 	l.log(INFO, format, a...)

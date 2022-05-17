@@ -9,8 +9,8 @@ import (
 
 // 定义一个接口
 type Logger interface {
-	Debug(format string, a ...interface{})
 	Trace(format string, a ...interface{})
+	Debug(format string, a ...interface{})
 	Info(format string, a ...interface{})
 	Warn(format string, a ...interface{})
 	Error(format string, a ...interface{})
@@ -22,8 +22,8 @@ type LogLevel uint16 // 日志级别
 
 const (
 	UNKNOWN LogLevel = iota // 未知级别
-	DEBUG
 	TRACE
+	DEBUG
 	INFO
 	WARN
 	ERROR
@@ -35,10 +35,10 @@ const (
 func pasrseLogLevel(level string) (LogLevel, error) {
 	level = strings.ToLower(level)
 	switch level {
-	case "debug":
-		return DEBUG, nil
 	case "trace":
 		return TRACE, nil
+	case "debug":
+		return DEBUG, nil
 	case "info":
 		return INFO, nil
 	case "warn":
@@ -57,10 +57,10 @@ func pasrseLogLevel(level string) (LogLevel, error) {
 // 将日志级别数字转string
 func (l LogLevel) logString() string {
 	switch l {
-	case DEBUG:
-		return "DEBUG"
 	case TRACE:
 		return "TRACE"
+	case DEBUG:
+		return "DEBUG"
 	case INFO:
 		return "INFO"
 	case WARN:
